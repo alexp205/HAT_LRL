@@ -1,5 +1,7 @@
 # ref: https://arxiv.org/pdf/1801.01423.pdf
 
+# TODO eventually test training and saving, cancelling execution, then loading and continue training but introduce new tasks, then demo
+
 import sys
 seed_val = int(sys.argv[1])
 datafile_name = sys.argv[2]
@@ -25,7 +27,7 @@ import gridenv_walldeath as gridenv
 
 data_logger = data_handler.DataHandler(datafile_name)
 
-is_test = False
+is_demo = False
 load_models = False
 render = False
 
@@ -36,14 +38,18 @@ available_tasks = ["LunarLander-v2", "gridworld", "CartPole-v1"]
 #task_arr = [available_tasks[0], available_tasks[2], available_tasks[1], available_tasks[0], available_tasks[2], available_tasks[1]]
 # task battery 2
 #task_arr = [available_tasks[1], available_tasks[2], available_tasks[0], available_tasks[2], available_tasks[0], available_tasks[1]]
-task_arr = [available_tasks[0], available_tasks[1], available_tasks[0], available_tasks[2], available_tasks[1], available_tasks[2]]
+# basic task battery
+task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
+test_task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 seen_task_dict = {}
 
 # hyperparams
 # - overall
 batch_size_dict = {available_tasks[0]: 128, available_tasks[1]: 128, available_tasks[2]: 128}
-run_lim_dict = {available_tasks[0]: 100000, available_tasks[1]: 10000, available_tasks[2]: 10000}
-test_runs_dict = {available_tasks[0]: 500, available_tasks[1]: 500, available_tasks[2]: 500}
+#run_lim_dict = {available_tasks[0]: 100000, available_tasks[1]: 10000, available_tasks[2]: 10000}
+run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 20000, available_tasks[2]: 20000}
+test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
+demo_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 1000, available_tasks[2]: 1000}
 # - DDQN-specific
 mem_len_dict = {0: 20000, 1: 20000, 2: 20000}
 explore_steps = 0
@@ -92,7 +98,9 @@ def main():
     if load_models:
         agent.load()
 
-    if not is_test:
+    if not is_demo:
+        # TRAINING
+        print("doing training")
         for idx, task in enumerate(task_arr):
             if task not in seen_task_dict:
                 seen_task_dict[task] = curr_task_id
@@ -169,16 +177,18 @@ def main():
                         log_data = (temp_ep-1, float(ep_r), total_runs, walltime.total_seconds())
                     else:
                         log_data = (temp_ep-1, float(ep_r)/float(run), total_runs, walltime.total_seconds())
-                    data_logger.store_episode_data(log_data, task_id)
-                    data_logger.save_episode_data(task, task_id)
-                    if 0 == temp_ep % 50:
+                    data_logger.store_train_data(log_data, task_id)
+                    data_logger.save_train_data(task, task_id)
+                    if 0 == temp_ep % 100:
+                        # TODO fix
                         masks = agent.model.mask(task_id, agent.s_factor)
+                        #print(masks)
                         for layer_idx, m in enumerate(masks):
                             temp_m = m.data.cpu().numpy()
-                            temp_m = temp_m.reshape((8, 16))
+                            temp_m = temp_m.reshape((16, 32))
                             yeah = ax.imshow(temp_m, cmap='binary_r', interpolation='nearest')
                             #plt.show()
-                            plt.savefig(os.path.join("./data/", task + "_mask_" + str(layer_idx) + "_" + str(temp_ep) + ".png"))
+                            fig.savefig(os.path.join("./data/", task + "_mask_" + str(layer_idx) + "_" + str(temp_ep) + ".png"))
                             ax.clear()
 
                     ##r_history.appendleft(ep_r)
@@ -201,9 +211,75 @@ def main():
             agent.get_masks()
             agent.is_first_task = False
             env.close()
+
+        # TESTING
+        print("doing testing")
+        for idx, task in enumerate(test_task_arr):
+            print("in task:")
+            print(task)
+            task_id = seen_task_dict[task]
+
+            if "gridworld" == task:
+                env = gridenv.GridEnvSim(10, 10, False, 1, False, True, 1, render)
+                # TODO for final paper replace this w/ the harder (but more accepted) gym-minigrid
+            else:
+                env = gym.make(task)
+                env.seed(seed_val+idx+69)
+            s = env.reset()
+            if 3 == len(s_shape):
+                s = img_preprocess(s)
+
+            s_shape = env.observation_space.shape
+            if isinstance(env.action_space, gym.spaces.Discrete):
+                a_shape = (env.action_space.n,)
+            else:
+                a_shape = env.action_space.shape
+            agent.set_up_task(task_id, s_shape, a_shape)
+
+            temp_ep = 0
+            run_lim = test_run_lim_dict[task]
+            run = 0
+            total_runs = 0
+            dt_start = datetime.now()
+            ep_r = 0
+
+            while total_runs < run_lim:
+                if render:
+                    env.render()
+                a = agent.act(s)
+                s_prime, r, done, _ = env.step(a)
+                if 3 == len(s_shape):
+                    s_prime = img_preprocess(s_prime)
+                s = np.copy(s_prime)
+
+                run += 1
+                total_runs += 1
+                ep_r += r
+
+                if done or (total_runs == run_lim):
+                    temp_ep += 1
+
+                    # do data logging
+                    walltime = datetime.now() - dt_start
+                    if "CartPole-v1" == task:
+                        log_data = (temp_ep-1, float(ep_r), total_runs, walltime.total_seconds())
+                    else:
+                        log_data = (temp_ep-1, float(ep_r)/float(run), total_runs, walltime.total_seconds())
+                    data_logger.store_test_data(log_data, task_id)
+                    data_logger.save_test_data(task, task_id)
+
+                    print("TEST (ep {}) r = {}".format(temp_ep, ep_r))
+
+                    run = 0
+                    ep_r = 0
+
+                    s = env.reset()
+                    if 3 == len(s_shape):
+                        s = img_preprocess(s)
+
+            env.close()
     else:
         # TODO check
-        # TODO need to save and load task info too
 
         agent.load()
         load_task_info()
@@ -229,7 +305,7 @@ def main():
             done = False
             run = 0
 
-            while not done and run < test_runs_dict[task]:
+            while not done and run < demo_runs_dict[task]:
                 if render:
                     env.render()
 
@@ -245,8 +321,8 @@ def main():
                 # do data logging
                 # TODO
                 #log_data = ()
-                #data_logger.store_test_data(log_data)
-                #data_logger.save_test_data()
+                #data_logger.store_demo_data(log_data)
+                #data_logger.save_demo_data()
 
 if __name__ == "__main__":
     main()

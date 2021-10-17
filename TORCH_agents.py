@@ -22,7 +22,8 @@ class ValueNet(nn.Module):
         self.fc_ins = nn.ModuleList()
         self.fc_outs = nn.ModuleList()
         #self.hl_size = 2048 # TODO 2048?
-        self.hl_size = 128
+        #self.hl_size = 128
+        self.hl_size = 512
 
         self.fc1 = nn.Linear(self.hl_size, self.hl_size)
         self.efc1 = nn.ModuleList()
@@ -171,7 +172,13 @@ class ValueNet(nn.Module):
         torch.save({
             'step': step,
             'state_dict': self.state_dict(),
-            'optimizer': optimizer.state_dict()
+            'optimizer': optimizer.state_dict(),
+            'task_ids': self.task_ids,
+            'task_shapes': self.task_shapes,
+            'fc_ins': self.fc_ins,
+            'fc_outs': self.fc_outs,
+            'efc1': self.efc1,
+            'efc2': self.efc2
         }, path)
 
     def load(self, checkpoint_path, optimizer=None):
@@ -180,6 +187,12 @@ class ValueNet(nn.Module):
         self.load_state_dict(checkpoint['state_dict'])
         if optimizer is not None:
             optimizer.load_state_dict(checkpoint['optimizer'])
+        self.task_ids = checkpoint['task_ids']
+        self.task_shapes = checkpoint['task_shapes']
+        self.fc_ins = checkpoint['fc_ins']
+        self.fc_outs = checkpoint['fc_outs']
+        self.efc1 = checkpoint['efc1']
+        self.efc2 = checkpoint['efc2']
 
 class PlayerAgent:
     def __init__(self, gamma, alpha, seed_val, mem_len, epsilon, epsilon_decay, epsilon_min, smax, lamb, thresh_emb, thresh_cosh, clipgrad):
@@ -230,6 +243,7 @@ class PlayerAgent:
 
         self.model.task_configure(task_id, s_shape, a_shape)
         if self.target_model.state_dict().keys() != self.model.state_dict().keys():
+            print("--- DOING PARAM COPY ---")
             temp_model = copy.deepcopy(self.target_model)
             self.target_model = copy.deepcopy(self.model)
             for name, param in self.target_model.named_parameters():
