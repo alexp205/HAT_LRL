@@ -1,6 +1,3 @@
-# ref (for HAT): https://github.com/joansj/hat
-# ref (for implementations): https://github.com/ZixuanKe/PyContinual
-
 import random
 import numpy as np
 import pickle
@@ -22,18 +19,10 @@ class ValueNet(nn.Module):
         self.fc_ins = nn.ModuleList()
         self.fc_outs = nn.ModuleList()
         #self.hl_size = 2048 # TODO 2048?
-        #self.hl_size = 128
-        self.hl_size = 512
-
-        self.fc1 = nn.Linear(self.hl_size, self.hl_size)
-        self.efc1 = nn.ModuleList()
-        self.fc2 = nn.Linear(self.hl_size, self.hl_size)
-        self.efc2 = nn.ModuleList()
-        #self.fc3 = nn.Linear(self.hl_size, self.hl_size)
-        #self.efc3 = nn.ModuleList()
+        self.hl_size = 128
+        #self.hl_size = 512
 
         self.relu = nn.ReLU()
-        self.gate = nn.Sigmoid()
 
     def task_configure(self, task_id, s_shape, a_shape):
         if task_id not in self.task_ids:
@@ -66,44 +55,11 @@ class ValueNet(nn.Module):
                 self.fc_ins.append(nn.Linear(s_shape[0], self.hl_size))
             self.fc_outs.append(nn.Linear(self.hl_size, a_shape[0]))
 
-            self.efc1.append(nn.Embedding(1, self.hl_size))
-            self.efc2.append(nn.Embedding(1, self.hl_size))
-            #self.efc3.append(nn.Embedding(1, self.hl_size))
-
             self.task_ids.append(task_id)
             self.task_shapes[task_id] = len(s_shape)
         self.curr_task_id = task_id
 
-    # TODO need dropout?
-    #def forward(self,t,x,s=1):
-    #    # Gates
-    #    masks=self.mask(t,s=s)
-    #    if self.nlayers==1:
-    #        gfc1=masks
-    #    elif self.nlayers==2:
-    #        gfc1,gfc2=masks
-    #    elif self.nlayers==3:
-    #        gfc1,gfc2,gfc3=masks
-    #    # Gated
-    #    h=self.drop1(x.view(x.size(0),-1))
-    #    h=self.drop2(self.relu(self.fc1(h)))
-    #    h=h*gfc1.expand_as(h)
-    #    if self.nlayers>1:
-    #        h=self.drop2(self.relu(self.fc2(h)))
-    #        h=h*gfc2.expand_as(h)
-    #        if self.nlayers>2:
-    #            h=self.drop2(self.relu(self.fc3(h)))
-    #            h=h*gfc3.expand_as(h)
-    #    y=[]
-    #    for t,i in self.taskcla:
-    #        y.append(self.last[t](h))
-    #    return y,masks
-    def forward(self, observations: torch.Tensor, s=1) -> torch.Tensor:
-        # gates
-        masks = self.mask(self.curr_task_id, s)
-        #gfc1, gfc2, gfc3 = masks
-        gfc1, gfc2 = masks
-
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
         #print(observations.shape)
 
         x = observations
@@ -121,52 +77,17 @@ class ValueNet(nn.Module):
         x = self.fc1(x)
         x = self.relu(x)
         #print(x.shape)
-        x = x * gfc1.expand_as(x)
-        #print(x.shape)
         x = self.fc2(x)
         x = self.relu(x)
         #print(x.shape)
-        x = x * gfc2.expand_as(x)
+        x = self.fc3(x)
+        x = self.relu(x)
         #print(x.shape)
-        #x = self.fc3(x)
-        #x = self.relu(x)
-        ##print(x.shape)
-        #x = x * gfc3.expand_as(x)
-        ##print(x.shape)
         x = self.fc_outs[self.curr_task_id](x)
         #print(x.shape)
         #input("wait")
 
-        return x, masks
-
-    def mask(self, task_id, s=1):
-        temp_id = Variable(torch.LongTensor([0]), volatile=False).cuda()
-        gfc1 = self.gate(s*self.efc1[self.curr_task_id](temp_id))
-        gfc2 = self.gate(s*self.efc2[self.curr_task_id](temp_id))
-        #gfc3 = self.gate(s*self.efc3[self.curr_task_id](temp_id))
-        #return [gfc1, gfc2, gfc3]
-        return [gfc1, gfc2]
-
-    def get_view_for(self, n, masks):
-        #gfc1, gfc2, gfc3 = masks
-        gfc1, gfc2 = masks
-        if n == 'fc1.weight':
-            return gfc1.data.view(-1,1).expand_as(self.fc1.weight)
-        elif n == 'fc1.bias':
-            return gfc1.data.view(-1)
-        elif n == 'fc2.weight':
-            post = gfc2.data.view(-1,1).expand_as(self.fc2.weight)
-            pre = gfc1.data.view(1,-1).expand_as(self.fc2.weight)
-            return torch.min(post,pre)
-        elif n == 'fc2.bias':
-            return gfc2.data.view(-1)
-        #elif n == 'fc3.weight':
-        #    post = gfc3.data.view(-1,1).expand_as(self.fc3.weight)
-        #    pre = gfc2.data.view(1,-1).expand_as(self.fc3.weight)
-        #    return torch.min(post,pre)
-        #elif n == 'fc3.bias':
-        #    return gfc3.data.view(-1)
-        return None
+        return x
 
     def save(self, path, step, optimizer):
         torch.save({
@@ -176,9 +97,7 @@ class ValueNet(nn.Module):
             'task_ids': self.task_ids,
             'task_shapes': self.task_shapes,
             'fc_ins': self.fc_ins,
-            'fc_outs': self.fc_outs,
-            'efc1': self.efc1,
-            'efc2': self.efc2
+            'fc_outs': self.fc_outs
         }, path)
 
     def load(self, checkpoint_path, optimizer=None):
@@ -191,11 +110,9 @@ class ValueNet(nn.Module):
         self.task_shapes = checkpoint['task_shapes']
         self.fc_ins = checkpoint['fc_ins']
         self.fc_outs = checkpoint['fc_outs']
-        self.efc1 = checkpoint['efc1']
-        self.efc2 = checkpoint['efc2']
 
 class PlayerAgent:
-    def __init__(self, gamma, alpha, seed_val, mem_len, epsilon, epsilon_decay, epsilon_min, smax, lamb, thresh_emb, thresh_cosh, clipgrad):
+    def __init__(self, gamma, alpha, seed_val, mem_len, epsilon, epsilon_decay, epsilon_min):
         self.gamma = gamma
         self.alpha = alpha
         self.seed_val = seed_val
@@ -205,10 +122,6 @@ class PlayerAgent:
         self.a_shape = (-2)
         self.task_id = -1
         self.is_first_task = True
-
-        self.s_factor = -1.
-        self.mask_pre = None
-        self.mask_back = None
 
         self.model = ValueNet().cuda()
         self.target_model = ValueNet().cuda()
@@ -221,29 +134,13 @@ class PlayerAgent:
         self.epsilon_init = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
-        self.smax = smax
-        self.lamb = lamb
-        self.thresh_emb = thresh_emb
-        self.thresh_cosh = thresh_cosh
-        self.clipgrad = clipgrad
 
     def set_up_task(self, task_id, s_shape, a_shape):
-        #print("in set_up_task")
-        #print("target_model params")
-        #print(self.target_model.parameters())
-        #print(self.target_model.state_dict())
-        #print("model params")
-        #print(self.model.parameters())
-        #print(self.model.state_dict())
-        #print("checking equality")
-        #print(self.target_model.state_dict().keys() == self.model.state_dict().keys())
-        #input("wait")
         self.s_shape = s_shape
         self.a_shape = a_shape
 
         self.model.task_configure(task_id, s_shape, a_shape)
         if self.target_model.state_dict().keys() != self.model.state_dict().keys():
-            print("--- DOING PARAM COPY ---")
             temp_model = copy.deepcopy(self.target_model)
             self.target_model = copy.deepcopy(self.model)
             for name, param in self.target_model.named_parameters():
@@ -284,60 +181,7 @@ class PlayerAgent:
     def sigmoid(self, val):
         return 1. / (1. + np.exp(-val))
 
-    # TODO check... but not now
-    def get_traj(self, traj_id):
-        traj = []
-
-        for trans in self.memory[traj_id]:
-            idx = trans[5]
-            if traj_id == idx:
-                traj.append(trans)
-
-        print(traj)
-        input("wait")
-
-        traj = np.sort(traj, axis=6)
-
-        print(traj)
-        input("wait")
-
-        return traj
-
-    def get_masks(self):
-        mask = self.model.mask(self.task_id, self.smax)
-        for i in range(len(mask)):
-            mask[i] = Variable(mask[i].data.clone(), requires_grad=False)
-        if self.is_first_task:
-            self.mask_pre = mask
-        else:
-            for i in range(len(self.mask_pre)):
-                self.mask_pre[i] = torch.max(self.mask_pre[i], mask[i])
-
-        self.mask_back = {}
-        for n,_ in self.model.named_parameters():
-            vals = self.model.get_view_for(n, self.mask_pre)
-            if vals is not None:
-                self.mask_back[n] = 1 - vals
-
-        #print("mask_pre")
-        #print(self.mask_pre)
-        #print("mask_back")
-        #print(self.mask_back)
-        #input("wait")
-
     def update_models(self, batch_size, update_num, num_updates):
-
-        #print("in update_models")
-        #print("target_model params")
-        #print(self.target_model.parameters())
-        #print(self.target_model.state_dict())
-        #print("model params")
-        #print(self.model.parameters())
-        #print(self.model.state_dict())
-        #print("checking equality")
-        #print(self.target_model.state_dict().keys() == self.model.state_dict().keys())
-        #input("wait")
-
         record_range = min(self.task_counters[self.task_id], self.mem_len[self.task_id])
         batch_indices = np.random.choice(record_range, batch_size)
         batch = np.asarray(self.memory[self.task_id], dtype=object)[batch_indices] # TODO do we replay data from ALL tasks?
@@ -360,13 +204,9 @@ class PlayerAgent:
         self.model.eval()
         self.target_model.eval()
 
-        self.s_factor = (self.smax-1/self.smax)*update_num/num_updates+1/self.smax # TODO same for RL? or do we need to modify? 
-
-        action_new, masks = self.model.forward(state_new, self.s_factor)
+        action_new = self.model.forward(state_new)
         #print("action_new")
         #print(action_new)
-        #print("masks")
-        #print(masks)
         action_new = action_new.max(dim=1)[1].cpu().data.view(-1, 1)
         #print("action_new")
         #print(action_new)
@@ -374,7 +214,7 @@ class PlayerAgent:
         action_new_onehot = Variable(action_new_onehot.scatter_(1, action_new, 1.0)).cuda()
 
         # use target network to evaluate value y = r + discount_factor * Q_tar(s', a')
-        action_target, _ = self.target_model.forward(state_new, self.s_factor)
+        action_target = self.target_model.forward(state_new)
         #print("action_target")
         #print(action_target)
         action_target = action_target*action_new_onehot
@@ -394,7 +234,7 @@ class PlayerAgent:
 
         # regression Q(s, a) -> y
         self.model.train()
-        action_old, _ = self.model.forward(state, self.s_factor)
+        action_old = self.model.forward(state)
         #print("action_old")
         #print(action_old)
         action_old = action_old*ref_action_onehot
@@ -404,60 +244,16 @@ class PlayerAgent:
         #print("Q")
         #print(Q)
         #input("wait")
-        loss, _ = self.criterion(Q, y.detach(), masks)
+        loss = mse_loss(input=Q, target=y.detach())
 
         # backward optimize
         self.optimizer.zero_grad()
         loss.backward()
-
-        # HAT - restrict layer grads
-        if not self.is_first_task:
-            for n,p in self.model.named_parameters():
-                if n in self.mask_back:
-                    p.grad.data *= self.mask_back[n]
-
-        # HAT - compensate embedding grads
-        for n,p in self.model.named_parameters():
-            if n.startswith('e'):
-                num = torch.cosh(torch.clamp(self.s_factor*p.data, -self.thresh_cosh, self.thresh_cosh)) + 1
-                den = torch.cosh(p.data) + 1
-                p.grad.data *= self.smax/self.s_factor*num/den
-
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clipgrad)
         self.optimizer.step()
-
-        # HAT - constrain embeddings
-        for n,p in self.model.named_parameters():
-            if n.startswith('e'):
-                p.data = torch.clamp(p.data, -self.thresh_emb, self.thresh_emb)
 
         temp_epsilon = self.epsilon[self.task_id]
         temp_epsilon *= self.epsilon_decay
         self.epsilon[self.task_id] = max(self.epsilon_min, temp_epsilon)
-
-    def criterion(self, outputs, targets, masks):
-        reg = 0
-        count = 0
-        if self.mask_pre is not None:
-            for m,mp in zip(masks, self.mask_pre):
-                aux = 1-mp
-                reg += (m*aux).sum()
-                count += aux.sum()
-        else:
-            for m in masks:
-                reg += m.sum()
-                count += np.prod(m.size()).item()
-        reg /= count
-        #print("outputs")
-        #print(outputs)
-        #print("targets")
-        #print(targets)
-        #print("reg")
-        #print(reg)
-        #print("count")
-        #print(count)
-        #input("wait")
-        return mse_loss(input=outputs, target=targets.detach()) + self.lamb * reg, reg
 
     def update_target_models(self, tau):
         for target_param, param in zip(self.target_model.parameters(), self.model.parameters()):
@@ -474,7 +270,7 @@ class PlayerAgent:
             state = Variable(state).cuda()
 
             self.model.eval()
-            estimate, _ = self.model.forward(state, self.s_factor)
+            estimate = self.model.forward(state)
             estimate = estimate.max(dim=1)
             a = estimate[1].data[0].cpu().numpy()
 

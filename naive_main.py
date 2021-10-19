@@ -1,7 +1,3 @@
-# ref: https://arxiv.org/pdf/1801.01423.pdf
-
-# TODO eventually test training and saving, cancelling execution, then loading and continue training but introduce new tasks, then demo
-
 import sys
 seed_val = int(sys.argv[1])
 datafile_name = sys.argv[2]
@@ -32,13 +28,7 @@ load_models = False
 render = False
 
 # tasks
-#available_tasks = ["Pong-v0", "gridworld", "CartPole-v1"]
 available_tasks = ["LunarLander-v2", "gridworld", "CartPole-v1"]
-# task battery 1
-#task_arr = [available_tasks[0], available_tasks[2], available_tasks[1], available_tasks[0], available_tasks[2], available_tasks[1]]
-# task battery 2
-#task_arr = [available_tasks[1], available_tasks[2], available_tasks[0], available_tasks[2], available_tasks[0], available_tasks[1]]
-# basic task battery
 task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 test_task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 seen_task_dict = {}
@@ -46,12 +36,11 @@ seen_task_dict = {}
 # hyperparams
 # - overall
 batch_size_dict = {available_tasks[0]: 128, available_tasks[1]: 128, available_tasks[2]: 128}
-#run_lim_dict = {available_tasks[0]: 100000, available_tasks[1]: 10000, available_tasks[2]: 10000}
 run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 20000, available_tasks[2]: 20000}
 test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
 demo_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 1000, available_tasks[2]: 1000}
 # - DDQN-specific
-mem_len_dict = {0: 20000, 1: 20000, 2: 20000}
+mem_len_dict = {0: 20000, 1: 20000, 2: 20000} # TODO apparently this is too much, need to cut down dramatically (~1000 for each)
 explore_steps = 0
 gamma = 0.99
 alpha = 0.001
@@ -59,14 +48,9 @@ tau = 0.001
 epsilon = 1.
 epsilon_decay = 0.999
 epsilon_min = 0.01
-smax = 400
-lamb = 0.75
-thresh_emb = 6
-thresh_cosh = 50
-clipgrad = 10000
 
 # NOTE for mask plotting, try to comment out when not using
-fig, ax = plt.subplots()
+#fig, ax = plt.subplots()
 
 def img_preprocess(obs):
     # manual
@@ -94,7 +78,7 @@ def img_preprocess(obs):
 def main():
     curr_task_id = 0
 
-    agent = agents.PlayerAgent(gamma, alpha, seed_val, mem_len_dict, epsilon, epsilon_decay, epsilon_min, smax, lamb, thresh_emb, thresh_cosh, clipgrad)
+    agent = agents.PlayerAgent(gamma, alpha, seed_val, mem_len_dict, epsilon, epsilon_decay, epsilon_min)
     if load_models:
         agent.load()
 
@@ -179,17 +163,6 @@ def main():
                         log_data = (temp_ep-1, float(ep_r)/float(run), total_runs, walltime.total_seconds())
                     data_logger.store_train_data(log_data, task_id)
                     data_logger.save_train_data(task, task_id)
-                    if 0 == temp_ep % 100:
-                        # TODO fix
-                        masks = agent.model.mask(task_id, agent.s_factor)
-                        #print(masks)
-                        for layer_idx, m in enumerate(masks):
-                            temp_m = m.data.cpu().numpy()
-                            temp_m = temp_m.reshape((16, 32))
-                            yeah = ax.imshow(temp_m, cmap='binary_r', interpolation='nearest')
-                            #plt.show()
-                            fig.savefig(os.path.join("./data/", task + "_mask_" + str(layer_idx) + "_" + str(temp_ep) + ".png"))
-                            ax.clear()
 
                     ##r_history.appendleft(ep_r)
                     ##if statistics.mean(r_history) > 9.9:
@@ -208,7 +181,6 @@ def main():
                     if 3 == len(s_shape):
                         s = img_preprocess(s)
 
-            agent.get_masks()
             agent.is_first_task = False
             env.close()
 
@@ -225,15 +197,15 @@ def main():
             else:
                 env = gym.make(task)
                 env.seed(seed_val+idx+69)
-            s = env.reset()
-            if 3 == len(s_shape):
-                s = img_preprocess(s)
-
             s_shape = env.observation_space.shape
             if isinstance(env.action_space, gym.spaces.Discrete):
                 a_shape = (env.action_space.n,)
             else:
                 a_shape = env.action_space.shape
+            s = env.reset()
+            if 3 == len(s_shape):
+                s = img_preprocess(s)
+
             agent.set_up_task(task_id, s_shape, a_shape)
 
             temp_ep = 0
