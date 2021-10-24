@@ -15,9 +15,9 @@ class ValueNet(nn.Module):
         super(ValueNet, self).__init__()
         # LunarLander
         # ref: https://github.com/frizner/LunarLander-v2/blob/master/lunarlander.py
-        self.fc1 = nn.Linear(s_shape[0], 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, a_shape[0])
+        #self.fc1 = nn.Linear(s_shape[0], 128)
+        #self.fc2 = nn.Linear(128, 64)
+        #self.fc3 = nn.Linear(64, a_shape[0])
         # gridworld
         # ref: https://github.com/mingen-pan/Reinforcement-Learning-Q-learning-Gridworld-Pytorch/blob/master/main.py
         #self.fc1 = nn.Linear(s_shape[0], 128)
@@ -25,9 +25,9 @@ class ValueNet(nn.Module):
         #self.fc3 = nn.Linear(128, a_shape[0])
         # CarPole
         # ref: https://github.com/gsurma/cartpole/blob/master/cartpole.py
-        #self.fc1 = nn.Linear(s_shape[0], 24)
-        #self.fc2 = nn.Linear(24, 24)
-        #self.fc3 = nn.Linear(24, a_shape[0])
+        self.fc1 = nn.Linear(s_shape[0], 24)
+        self.fc2 = nn.Linear(24, 24)
+        self.fc3 = nn.Linear(24, a_shape[0])
         self.relu = nn.ReLU()
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:

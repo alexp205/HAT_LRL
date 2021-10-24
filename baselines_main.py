@@ -1,3 +1,5 @@
+# TODO check
+
 import sys
 seed_val = int(sys.argv[1])
 datafile_name = sys.argv[2]
@@ -27,21 +29,21 @@ load_models = False
 render = False
 
 # tasks
-available_tasks = ["LunarLander-v2"] # NOTE change this
+#available_tasks = ["LunarLander-v2"] # NOTE change this
 #available_tasks = ["gridworld"] # NOTE change this
-#available_tasks = ["CartPole-v1"] # NOTE change this
+available_tasks = ["CartPole-v1"] # NOTE change this
 task_arr = [available_tasks[0]]
 test_task_arr = [available_tasks[0]]
 
 # hyperparams
 # - overall
 batch_size_dict = {available_tasks[0]: 128}
-run_lim_dict = {available_tasks[0]: 200000} # NOTE change this
+#run_lim_dict = {available_tasks[0]: 200000} # NOTE change this
 #run_lim_dict = {available_tasks[0]: 20000} # NOTE change this
-#run_lim_dict = {available_tasks[0]: 20000} # NOTE change this
+run_lim_dict = {available_tasks[0]: 20000} # NOTE change this
+#test_run_lim_dict = {available_tasks[0]: 10000} # NOTE change this
+#test_run_lim_dict = {available_tasks[0]: 10000} # NOTE change this
 test_run_lim_dict = {available_tasks[0]: 10000} # NOTE change this
-#test_run_lim_dict = {available_tasks[0]: 10000} # NOTE change this
-#test_run_lim_dict = {available_tasks[0]: 10000} # NOTE change this
 # - DDQN-specific
 mem_len = 20000 # TODO apparently this is too much, need to cut down dramatically (~1000 for each)
 explore_steps = 0
@@ -138,17 +140,23 @@ def main():
             agent.update_target_models(tau)
             agent.update_models(batch_size, total_runs, run_lim)
 
-            if done or (total_runs == run_lim):
-                temp_ep += 1
-
-                # do data logging
+            # do data logging
+            if 0 == total_runs % log_period:
                 walltime = datetime.now() - dt_start
                 if "CartPole-v1" == task:
-                    log_data = (temp_ep-1, float(ep_r), total_runs, walltime.total_seconds())
+                    log_data = (total_runs, float(ep_r), walltime.total_seconds())
                 else:
-                    log_data = (temp_ep-1, float(ep_r)/float(run), total_runs, walltime.total_seconds())
+                    log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                 data_logger.store_train_data(log_data, 0)
                 data_logger.save_train_data(task, 0)
+
+                print("period r = {}".format(ep_r))
+
+                run = 0
+                ep_r = 0
+
+            if done or (total_runs == run_lim):
+                temp_ep += 1
 
                 ##r_history.appendleft(ep_r)
                 ##if statistics.mean(r_history) > 9.9:
@@ -158,10 +166,7 @@ def main():
                 #if 0 == temp_ep % 10:
                 #    agent.save()
 
-                print("(ep {}) r = {}".format(temp_ep, ep_r))
-
-                run = 0
-                ep_r = 0
+                print("(ep {})".format(temp_ep))
 
                 s = env.reset()
                 if 3 == len(s_shape):
@@ -210,26 +215,31 @@ def main():
             total_runs += 1
             ep_r += r
 
-            if done or (total_runs == run_lim):
-                temp_ep += 1
-
-                # do data logging
+            # do data logging
+            if 0 == total_runs % log_period:
                 walltime = datetime.now() - dt_start
-                if "CartPole-v1" == task:
-                    log_data = (temp_ep-1, float(ep_r), total_runs, walltime.total_seconds())
+                if "CartPole-v1" == test_task:
+                    log_data = (total_runs, float(ep_r), walltime.total_seconds())
                 else:
-                    log_data = (temp_ep-1, float(ep_r)/float(run), total_runs, walltime.total_seconds())
+                    log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                 data_logger.store_test_data(log_data, 0)
-                data_logger.save_test_data(task, 0)
+                data_logger.save_test_data(test_task, 0, idx)
 
-                print("TEST (ep {}) r = {}".format(temp_ep, ep_r))
+                print("TEST period r = {}".format(ep_r))
 
                 run = 0
                 ep_r = 0
 
+            if done or (total_runs == run_lim):
+                temp_ep += 1
+
+                print("TEST (ep {})".format(temp_ep))
+
                 s = env.reset()
                 if 3 == len(s_shape):
                     s = img_preprocess(s)
+
+        data_logger.reset_test_data()
 
         env.close()
 

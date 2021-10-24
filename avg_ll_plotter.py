@@ -4,6 +4,8 @@ from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
+# TODO change to run-based data collection
+
 plt.rcParams.update({'font.size': 14})
 
 #data_dir = "./data/basic_seq_lrl_test"

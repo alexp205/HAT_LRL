@@ -21,7 +21,6 @@ class ValueNet(nn.Module):
         self.task_shapes = {}
         self.fc_ins = nn.ModuleList()
         self.fc_outs = nn.ModuleList()
-        #self.hl_size = 2048 # TODO 2048?
         self.hl_size = 128
         #self.hl_size = 512
 
@@ -245,7 +244,7 @@ class PlayerAgent:
 
         self.model.task_configure(task_id, s_shape, a_shape)
         if self.target_model.state_dict().keys() != self.model.state_dict().keys():
-            print("--- DOING PARAM COPY ---")
+            #print("--- DOING PARAM COPY ---")
             temp_model = copy.deepcopy(self.target_model)
             self.target_model = copy.deepcopy(self.model)
             for name, param in self.target_model.named_parameters():
@@ -342,7 +341,7 @@ class PlayerAgent:
 
         record_range = min(self.task_counters[self.task_id], self.mem_len[self.task_id])
         batch_indices = np.random.choice(record_range, batch_size)
-        batch = np.asarray(self.memory[self.task_id], dtype=object)[batch_indices] # TODO do we replay data from ALL tasks?
+        batch = np.asarray(self.memory[self.task_id], dtype=object)[batch_indices]
 
         # ref: self.memory.append((s_in, a, r, s_prime_in, done, ep, run))
         state = torch.from_numpy(np.asarray(batch[:,0].tolist())).float()
