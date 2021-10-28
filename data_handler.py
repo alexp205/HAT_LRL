@@ -41,7 +41,8 @@ class DataHandler:
 
         f = self.f_dir + self.f_name + "_" + task + ".csv"
 
-        df.to_csv(f, header=False, index=False)
+        #df.to_csv(f, header=False, index=False)
+        df.to_csv(f, header=False, index=True)
 
     def store_test_data(self, data, task_id):
         #episode_val, r_val, run_val, time_val = data
@@ -66,7 +67,8 @@ class DataHandler:
 
         f = self.f_dir + "TEST_" + self.f_name + "_iter_" + str(iteration) + "_" + task + ".csv"
 
-        df.to_csv(f, header=False, index=False)
+        #df.to_csv(f, header=False, index=False)
+        df.to_csv(f, header=False, index=True)
 
     def reset_test_data(self):
         self.test_episode_data = {}

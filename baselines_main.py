@@ -1,5 +1,3 @@
-# TODO check
-
 import sys
 seed_val = int(sys.argv[1])
 datafile_name = sys.argv[2]
@@ -44,6 +42,7 @@ run_lim_dict = {available_tasks[0]: 20000} # NOTE change this
 #test_run_lim_dict = {available_tasks[0]: 10000} # NOTE change this
 #test_run_lim_dict = {available_tasks[0]: 10000} # NOTE change this
 test_run_lim_dict = {available_tasks[0]: 10000} # NOTE change this
+log_period = 10
 # - DDQN-specific
 mem_len = 20000 # TODO apparently this is too much, need to cut down dramatically (~1000 for each)
 explore_steps = 0
@@ -111,6 +110,7 @@ def main():
             agent.load()
 
         temp_ep = 0
+        check_ep = 0
         run_lim = run_lim_dict[task]
         batch_size = batch_size_dict[task]
         run = 0
@@ -144,7 +144,9 @@ def main():
             if 0 == total_runs % log_period:
                 walltime = datetime.now() - dt_start
                 if "CartPole-v1" == task:
-                    log_data = (total_runs, float(ep_r), walltime.total_seconds())
+                    ep_diff = temp_ep - check_ep
+                    log_data = (total_runs, float(ep_r)/float(ep_diff+1), walltime.total_seconds())
+                    check_ep = temp_ep
                 else:
                     log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                 data_logger.store_train_data(log_data, 0)
@@ -196,6 +198,7 @@ def main():
             s = img_preprocess(s)
 
         temp_ep = 0
+        check_ep = 0
         run_lim = test_run_lim_dict[task]
         run = 0
         total_runs = 0
@@ -219,7 +222,9 @@ def main():
             if 0 == total_runs % log_period:
                 walltime = datetime.now() - dt_start
                 if "CartPole-v1" == test_task:
-                    log_data = (total_runs, float(ep_r), walltime.total_seconds())
+                    ep_diff = temp_ep - check_ep
+                    log_data = (total_runs, float(ep_r)/float(ep_diff+1), walltime.total_seconds())
+                    check_ep = temp_ep
                 else:
                     log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                 data_logger.store_test_data(log_data, 0)

@@ -1,11 +1,5 @@
 # ref: https://arxiv.org/pdf/1801.01423.pdf
 
-# TODO eventually test training and saving, cancelling execution, then loading and continue training but introduce new tasks, then demo
-
-# TODO experiments:
-# - more nodes per layer
-# - gridworld-first order
-
 import sys
 seed_val = int(sys.argv[1])
 datafile_name = sys.argv[2]
@@ -24,7 +18,7 @@ import statistics
 import matplotlib.pyplot as plt
 import cv2
 
-import agents
+import dev_agents as agents
 import data_handler
 import gym
 import gridenv_walldeath as gridenv
@@ -36,14 +30,7 @@ load_models = False
 render = False
 
 # tasks
-#available_tasks = ["Pong-v0", "gridworld", "CartPole-v1"]
 available_tasks = ["LunarLander-v2", "gridworld", "CartPole-v1"]
-#available_tasks = ["gridworld", "CartPole-v1", "LunarLander-v2"]
-# task battery 1
-#task_arr = [available_tasks[0], available_tasks[2], available_tasks[1], available_tasks[0], available_tasks[2], available_tasks[1]]
-# task battery 2
-#task_arr = [available_tasks[1], available_tasks[2], available_tasks[0], available_tasks[2], available_tasks[0], available_tasks[1]]
-# basic task battery
 task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 test_task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 seen_task_dict = {}
@@ -51,11 +38,10 @@ seen_task_dict = {}
 # hyperparams
 # - overall
 batch_size_dict = {available_tasks[0]: 128, available_tasks[1]: 128, available_tasks[2]: 128}
-#run_lim_dict = {available_tasks[0]: 100000, available_tasks[1]: 10000, available_tasks[2]: 10000}
 run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 20000, available_tasks[2]: 20000}
-#run_lim_dict = {available_tasks[0]: 50, available_tasks[1]: 50, available_tasks[2]: 50}
+#run_lim_dict = {available_tasks[0]: 50, available_tasks[1]: 50, available_tasks[2]: 500}
 test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
-#test_run_lim_dict = {available_tasks[0]: 30, available_tasks[1]: 30, available_tasks[2]: 30}
+#test_run_lim_dict = {available_tasks[0]: 30, available_tasks[1]: 30, available_tasks[2]: 100}
 demo_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 1000, available_tasks[2]: 1000}
 log_period = 500
 # - DDQN-specific
@@ -185,7 +171,7 @@ def main():
                         log_data = (total_runs, float(ep_r)/float(ep_diff+1), walltime.total_seconds())
                         check_ep = temp_ep
                     else:
-                        log_data = (total_runs, float(ep_r), walltime.total_seconds())
+                        log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                     data_logger.store_train_data(log_data, task_id)
                     data_logger.save_train_data(task, task_id)
 
@@ -282,7 +268,7 @@ def main():
                             log_data = (total_runs, float(ep_r)/float(ep_diff+1), walltime.total_seconds())
                             check_ep = temp_ep
                         else:
-                            log_data = (total_runs, float(ep_r), walltime.total_seconds())
+                            log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                         data_logger.store_test_data(log_data, test_task_id)
                         data_logger.save_test_data(test_task, test_task_id, idx)
 

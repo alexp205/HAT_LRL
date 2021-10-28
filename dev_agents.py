@@ -1,6 +1,3 @@
-# ref (for HAT): https://github.com/joansj/hat
-# ref (for implementations): https://github.com/ZixuanKe/PyContinual
-
 import random
 import numpy as np
 import pickle
@@ -21,15 +18,17 @@ class ValueNet(nn.Module):
         self.task_shapes = {}
         self.fc_ins = nn.ModuleList()
         self.fc_outs = nn.ModuleList()
-        #self.hl_size = 128
-        self.hl_size = 256
+        self.hl_size = 128
 
         self.fc1 = nn.Linear(self.hl_size, self.hl_size)
         self.efc1 = nn.ModuleList()
+        self.s_efc1 = nn.ModuleList()
         self.fc2 = nn.Linear(self.hl_size, self.hl_size)
         self.efc2 = nn.ModuleList()
+        self.s_efc2 = nn.ModuleList()
         self.fc3 = nn.Linear(self.hl_size, self.hl_size)
         self.efc3 = nn.ModuleList()
+        self.s_efc3 = nn.ModuleList()
 
         self.relu = nn.ReLU()
         self.gate = nn.Sigmoid()
@@ -68,6 +67,9 @@ class ValueNet(nn.Module):
             self.efc1.append(nn.Embedding(1, self.hl_size))
             self.efc2.append(nn.Embedding(1, self.hl_size))
             self.efc3.append(nn.Embedding(1, self.hl_size))
+            self.s_efc1.append(nn.Embedding(1, self.hl_size))
+            self.s_efc2.append(nn.Embedding(1, self.hl_size))
+            self.s_efc3.append(nn.Embedding(1, self.hl_size))
 
             self.task_ids.append(task_id)
             self.task_shapes[task_id] = len(s_shape)
@@ -140,9 +142,12 @@ class ValueNet(nn.Module):
 
     def mask(self, task_id, s=1):
         temp_id = Variable(torch.LongTensor([0]), volatile=False).cuda()
-        gfc1 = self.gate(s*self.efc1[self.curr_task_id](temp_id))
-        gfc2 = self.gate(s*self.efc2[self.curr_task_id](temp_id))
-        gfc3 = self.gate(s*self.efc3[self.curr_task_id](temp_id))
+        #gfc1 = self.gate(s*self.efc1[self.curr_task_id](temp_id))
+        #gfc2 = self.gate(s*self.efc2[self.curr_task_id](temp_id))
+        #gfc3 = self.gate(s*self.efc3[self.curr_task_id](temp_id))
+        gfc1 = self.gate(self.s_efc1[self.curr_task_id](temp_id)) * self.gate(s*self.efc1[self.curr_task_id](temp_id))
+        gfc2 = self.gate(self.s_efc2[self.curr_task_id](temp_id)) * self.gate(s*self.efc2[self.curr_task_id](temp_id))
+        gfc3 = self.gate(self.s_efc3[self.curr_task_id](temp_id)) * self.gate(s*self.efc3[self.curr_task_id](temp_id))
         return [gfc1, gfc2, gfc3]
         #return [gfc1, gfc2]
 
@@ -178,7 +183,10 @@ class ValueNet(nn.Module):
             'fc_outs': self.fc_outs,
             'efc1': self.efc1,
             #'efc3': self.efc3,
-            'efc2': self.efc2
+            'efc2': self.efc2,
+            's_efc1': self.s_efc1,
+            #'s_efc3': self.s_efc3,
+            's_efc2': self.s_efc2
         }, path)
 
     def load(self, checkpoint_path, optimizer=None):
@@ -194,6 +202,9 @@ class ValueNet(nn.Module):
         self.efc1 = checkpoint['efc1']
         #self.efc3 = checkpoint['efc3']
         self.efc2 = checkpoint['efc2']
+        self.s_efc1 = checkpoint['s_efc1']
+        #self.s_efc3 = checkpoint['s_efc3']
+        self.s_efc2 = checkpoint['s_efc2']
 
 class PlayerAgent:
     def __init__(self, gamma, alpha, seed_val, mem_len, epsilon, epsilon_decay, epsilon_min, smax, lamb, thresh_emb, thresh_cosh, clipgrad):
@@ -362,6 +373,12 @@ class PlayerAgent:
         self.target_model.eval()
 
         self.s_factor = (self.smax-1/self.smax)*update_num/num_updates+1/self.smax # TODO same for RL? or do we need to modify? 
+        #time_comp = update_num/num_updates
+        ##explore_comp = 1-self.epsilon[self.task_id]
+        #perf_comp = self.sigmoid(np.mean(reward.data.cpu().numpy()))
+        #self.s_factor = (self.smax-1/self.smax)*(self.rescale((time_comp+perf_comp),0.,2.,0.,1.))+1/self.smax # TODO this only works for 1-off task encounters for now
+        if 0 == self.task_counters[self.task_id] % 1000:
+            print("s: {}".format(self.s_factor))
 
         action_new, masks = self.model.forward(state_new, self.s_factor)
         #print("action_new")

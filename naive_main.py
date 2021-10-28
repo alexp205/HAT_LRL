@@ -1,5 +1,3 @@
-# TODO check
-
 import sys
 seed_val = int(sys.argv[1])
 datafile_name = sys.argv[2]
@@ -37,8 +35,11 @@ seen_task_dict = {}
 # hyperparams
 # - overall
 batch_size_dict = {available_tasks[0]: 128, available_tasks[1]: 128, available_tasks[2]: 128}
-run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 20000, available_tasks[2]: 20000}
-test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
+#run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 20000, available_tasks[2]: 20000}
+run_lim_dict = {available_tasks[0]: 50, available_tasks[1]: 50, available_tasks[2]: 50}
+#test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
+test_run_lim_dict = {available_tasks[0]: 30, available_tasks[1]: 30, available_tasks[2]: 30}
+log_period = 10
 # - DDQN-specific
 mem_len_dict = {0: 20000, 1: 20000, 2: 20000} # TODO apparently this is too much, need to cut down dramatically (~1000 for each)
 explore_steps = 0
@@ -120,6 +121,7 @@ def main():
         agent.set_up_task(task_id, s_shape, a_shape)
 
         temp_ep = 0
+        check_ep = 0
         #ep_lim = episode_lim_dict[task]
         run_lim = run_lim_dict[task]
         batch_size = batch_size_dict[task]
@@ -155,7 +157,9 @@ def main():
             if 0 == total_runs % log_period:
                 walltime = datetime.now() - dt_start
                 if "CartPole-v1" == task:
-                    log_data = (total_runs, float(ep_r), walltime.total_seconds())
+                    ep_diff = temp_ep - check_ep
+                    log_data = (total_runs, float(ep_r)/float(ep_diff+1), walltime.total_seconds())
+                    check_ep = temp_ep
                 else:
                     log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                 data_logger.store_train_data(log_data, task_id)
@@ -213,6 +217,7 @@ def main():
             agent.set_up_task(test_task_id, s_shape, a_shape)
 
             temp_ep = 0
+            check_ep = 0
             run_lim = test_run_lim_dict[test_task]
             run = 0
             total_runs = 0
@@ -236,7 +241,9 @@ def main():
                 if 0 == total_runs % log_period:
                     walltime = datetime.now() - dt_start
                     if "CartPole-v1" == test_task:
-                        log_data = (total_runs, float(ep_r), walltime.total_seconds())
+                        ep_diff = temp_ep - check_ep
+                        log_data = (total_runs, float(ep_r)/float(ep_diff+1), walltime.total_seconds())
+                        check_ep = temp_ep
                     else:
                         log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                     data_logger.store_test_data(log_data, test_task_id)
