@@ -414,13 +414,5 @@ class GridEnvSim:
                     cand_grid[cand_starting_loc[0], cand_starting_loc[1]] = 1
 
                     vis_states.append(cand_grid.tolist())
-                else:
-                    cand_grid[cand_goal_locs[0], cand_goal_locs[1]] = 9
-                    for b_loc in self.block_locs:
-                        cand_grid[b_loc[0], b_loc[1]] = 3
-                    for f_loc in self.fail_locs:
-                        cand_grid[f_loc[0], f_loc[1]] = -1
-
-                    vis_states.append(cand_grid.tolist())
 
         return vis_states

@@ -18,12 +18,10 @@ import statistics
 import matplotlib.pyplot as plt
 import cv2
 
-import dev_agents as agents
+import COPY_dev_agents as agents
 import data_handler
 import gym
 import gridenv_walldeath as gridenv
-
-from torch.autograd import Variable
 
 data_logger = data_handler.DataHandler(datafile_name)
 
@@ -32,8 +30,7 @@ load_models = False
 render = False
 
 # tasks
-available_tasks = ["LunarLander-v2", "gridworld", "CartPole-v1"]
-#available_tasks = ["gridworld", "CartPole-v1", "LunarLander-v2"]
+available_tasks = ["gridworld", "CartPole-v1", "LunarLander-v2"]
 task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 test_task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 seen_task_dict = {}
@@ -41,19 +38,20 @@ seen_task_dict = {}
 # hyperparams
 # - overall
 batch_size_dict = {available_tasks[0]: 128, available_tasks[1]: 128, available_tasks[2]: 128}
-run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 15000, available_tasks[2]: 20000}
+run_lim_dict = {available_tasks[0]: 15000, available_tasks[1]: 20000, available_tasks[2]: 200000}
 #run_lim_dict = {available_tasks[0]: 50, available_tasks[1]: 50, available_tasks[2]: 50}
 test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
 #test_run_lim_dict = {available_tasks[0]: 30, available_tasks[1]: 30, available_tasks[2]: 30}
-demo_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 1000, available_tasks[2]: 1000}
+demo_run_lim_dict = {available_tasks[0]: 1000, available_tasks[1]: 1000, available_tasks[2]: 10000}
 log_period = 500
 # - DDQN-specific
 mem_len_dict = {0: 20000, 1: 20000, 2: 20000} # TODO apparently this is too much, need to cut down dramatically (~1000 for each)
 explore_steps = 0
-gamma = 0.95 #0.99
+gamma = 0.9 #0.99
 alpha = 0.001
+tau = 0.001
 epsilon = 1.
-epsilon_decay = 0.9995 #0.999
+epsilon_decay = 0.999
 epsilon_min = 0.01
 smax = 400
 lamb = 0.75
@@ -63,56 +61,9 @@ clipgrad = 10000
 surv_len_dict = {0: 5000, 1: 5000, 2: 5000}
 #surv_len_dict = {0: 10, 1: 10, 2: 10}
 reg_mod = 100.
-reg_alpha = 5e-4 #1e-5
-reg_temperature_decay = 0.99
 
 # NOTE for mask plotting, try to comment out when not using
 #fig, ax = plt.subplots()
-
-def render_vals(env, agent, img, fig, ax, axbkgd):
-    vis_s = []
-    temp_s = env.get_vis_states()
-    for t_s in temp_s:
-        vis_s.append(np.asarray(t_s).flatten())
-    vis_s = Variable(torch.from_numpy(np.asarray(vis_s)).float()).cuda()
-    agent.model.eval()
-    vis_q, _ = agent.model.forward(vis_s, agent.s_factor)
-    vis_q = vis_q.max(dim=1)
-    vis_a = vis_q[1].data.cpu().numpy()
-    vis_q = vis_q[0].data.cpu().numpy()
-    xv, yv, xd, yd = ([] for i in range(4))
-    for idx, v_a in enumerate(vis_a):
-        xv.append(idx // 10)
-        yv.append(idx % 10)
-        if 0 == v_a: # right
-            xd.append(-0.1)
-            yd.append(0)
-        elif 1 == v_a: # down
-            xd.append(0)
-            yd.append(-0.1)
-        elif 2 == v_a: # left
-            xd.append(0.1)
-            yd.append(0)
-        else: # up
-            xd.append(0)
-            yd.append(0.1)
-
-    grid = np.transpose(np.reshape(vis_q, (10,10)))
-    #vectorized_arrow_drawing(xv, yv, xd, yd, 1.0)#0.15)
-    # - non-blocking (hopefully) raw matplotlib
-    if 0 == agent.counter % 10:
-        ax.clear()
-    img = ax.imshow(grid, cmap='seismic', vmin=-10, vmax=10)
-    img.set_data(grid)
-    temp = ax.quiver(xv, yv, xd, yd, scale=2.)#, width=0.2)
-    fig.canvas.restore_region(axbkgd)
-    ax.draw_artist(img)
-    ax.draw_artist(temp)
-    fig.canvas.blit(ax.bbox) # ref: https://stackoverflow.com/questions/40126176/fast-live-plotting-in-matplotlib-pyplot
-    fig.canvas.flush_events()
-
-    return img
-
 
 def img_preprocess(obs):
     # manual
@@ -140,18 +91,13 @@ def img_preprocess(obs):
 def main():
     curr_task_id = 0
 
-    agent = agents.PlayerAgent(gamma, alpha, seed_val, mem_len_dict, epsilon, epsilon_decay, epsilon_min, smax, lamb, thresh_emb, thresh_cosh, clipgrad, surv_len_dict, reg_mod, reg_alpha, reg_temperature_decay)
+    agent = agents.PlayerAgent(gamma, alpha, seed_val, mem_len_dict, epsilon, epsilon_decay, epsilon_min, smax, lamb, thresh_emb, thresh_cosh, clipgrad, surv_len_dict, reg_mod)
     if load_models:
         agent.load()
 
     if not is_demo:
         # TRAINING
         for idx, task in enumerate(task_arr):
-            # TODO eventually, this should be more per-task (i.e. a tau that is tracked for each task)
-            #tau = 0.001
-            tau = 0.25
-            tau_decay = 0.995
-            tau_min = 0.001
             print("doing training")
             if task not in seen_task_dict:
                 seen_task_dict[task] = curr_task_id
@@ -165,17 +111,6 @@ def main():
             if "gridworld" == task:
                 env = gridenv.GridEnvSim(10, 10, False, 1, False, True, 1, render)
                 # TODO for final paper replace this w/ the harder (but more accepted) gym-minigrid
-
-                if render:
-                    input("--- WAIT (BEFORE VIS) ---")
-
-                    grid = np.zeros((10, 10))
-                    fig = plt.figure()
-                    ax = fig.add_subplot(1,1,1)
-                    img = ax.imshow(grid, cmap='seismic', vmin=-10, vmax=10)
-                    fig.canvas.draw()
-                    axbkgd = fig.canvas.copy_from_bbox(ax.bbox)
-                    plt.show(block=False)
             else:
                 env = gym.make(task)
                 env.seed(seed_val+idx)
@@ -212,9 +147,7 @@ def main():
             #while temp_ep < ep_lim:
             while total_runs < run_lim:
                 if render:
-                    if "gridworld" == task:
-                        env.render()
-                        img = render_vals(env, agent, img, fig, ax, axbkgd)
+                    env.render()
 
                 # get action
                 a = agent.act(s, False)
@@ -234,9 +167,6 @@ def main():
 
                 agent.update_target_models(tau)
                 agent.update_models(batch_size, total_runs, run_lim)
-
-                tau *= tau_decay
-                tau = max(tau_min, tau)
 
                 # do data logging
                 if 0 == total_runs % log_period:
@@ -280,8 +210,6 @@ def main():
 
                     agent.store_perf(temp_ep_r)
 
-                    #agent.update_reg_scaler()
-
                     print("(ep {})".format(temp_ep))
 
                     temp_ep_r = 0
@@ -293,9 +221,6 @@ def main():
             agent.get_masks()
             agent.is_first_task = False
             env.close()
-
-            if render:
-                plt.close('all')
 
             # TESTING
             print("doing phase {0} testing".format(idx))
@@ -309,17 +234,6 @@ def main():
                 if "gridworld" == test_task:
                     env = gridenv.GridEnvSim(10, 10, False, 1, False, True, 1, render)
                     # TODO for final paper replace this w/ the harder (but more accepted) gym-minigrid
-
-                    if render:
-                        input("--- WAIT (BEFORE VIS) TESTING ---")
-
-                        grid = np.zeros((10, 10))
-                        fig = plt.figure()
-                        ax = fig.add_subplot(1,1,1)
-                        img = ax.imshow(grid, cmap='seismic', vmin=-10, vmax=10)
-                        fig.canvas.draw()
-                        axbkgd = fig.canvas.copy_from_bbox(ax.bbox)
-                        plt.show(block=False)
                 else:
                     env = gym.make(test_task)
                     env.seed(seed_val+jdx+69)
@@ -344,9 +258,7 @@ def main():
 
                 while total_runs < run_lim:
                     if render:
-                        if "gridworld" == test_task:
-                            env.render()
-                            img = render_vals(env, agent, img, fig, ax, axbkgd)
+                        env.render()
                     a = agent.act(s, True)
                     s_prime, r, done, _ = env.step(a)
                     if 3 == len(s_shape):
@@ -386,9 +298,6 @@ def main():
                 data_logger.reset_test_data()
 
                 env.close()
-
-                if render:
-                    plt.close('all')
     else:
         # TODO check
 

@@ -27,7 +27,8 @@ load_models = False
 render = False
 
 # tasks
-available_tasks = ["LunarLander-v2", "gridworld", "CartPole-v1"]
+#available_tasks = ["LunarLander-v2", "gridworld", "CartPole-v1"]
+available_tasks = ["gridworld", "CartPole-v1", "LunarLander-v2"]
 task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 test_task_arr = [available_tasks[0], available_tasks[1], available_tasks[2]]
 seen_task_dict = {}
@@ -35,11 +36,12 @@ seen_task_dict = {}
 # hyperparams
 # - overall
 batch_size_dict = {available_tasks[0]: 128, available_tasks[1]: 128, available_tasks[2]: 128}
-#run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 20000, available_tasks[2]: 20000}
-run_lim_dict = {available_tasks[0]: 50, available_tasks[1]: 50, available_tasks[2]: 50}
-#test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
-test_run_lim_dict = {available_tasks[0]: 30, available_tasks[1]: 30, available_tasks[2]: 30}
-log_period = 10
+#run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 15000, available_tasks[2]: 20000}
+run_lim_dict = {available_tasks[0]: 15000, available_tasks[1]: 20000, available_tasks[2]: 200000}
+#run_lim_dict = {available_tasks[0]: 50, available_tasks[1]: 50, available_tasks[2]: 50}
+test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
+#test_run_lim_dict = {available_tasks[0]: 30, available_tasks[1]: 30, available_tasks[2]: 30}
+log_period = 500
 # - DDQN-specific
 mem_len_dict = {0: 20000, 1: 20000, 2: 20000} # TODO apparently this is too much, need to cut down dramatically (~1000 for each)
 explore_steps = 0
@@ -136,7 +138,7 @@ def main():
                 env.render()
 
             # get action
-            a = agent.act(s)
+            a = agent.act(s, False)
 
             # perform action and advance env
             s_prime, r, done, _ = env.step(a)
@@ -227,7 +229,7 @@ def main():
             while total_runs < run_lim:
                 if render:
                     env.render()
-                a = agent.act(s)
+                a = agent.act(s, True)
                 s_prime, r, done, _ = env.step(a)
                 if 3 == len(s_shape):
                     s_prime = img_preprocess(s_prime)

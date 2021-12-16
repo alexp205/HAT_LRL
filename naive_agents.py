@@ -18,13 +18,12 @@ class ValueNet(nn.Module):
         self.task_shapes = {}
         self.fc_ins = nn.ModuleList()
         self.fc_outs = nn.ModuleList()
-        #self.hl_size = 2048 # TODO 2048?
-        self.hl_size = 128
-        #self.hl_size = 512
+        #self.hl_size = 128
+        self.hl_size = 512
 
         self.fc1 = nn.Linear(self.hl_size, self.hl_size)
-        self.fc2 = nn.Linear(self.hl_size, self.hl_size)
-        self.fc3 = nn.Linear(self.hl_size, self.hl_size)
+        #self.fc2 = nn.Linear(self.hl_size, self.hl_size)
+        #self.fc3 = nn.Linear(self.hl_size, self.hl_size)
 
         self.relu = nn.ReLU()
 
@@ -77,16 +76,17 @@ class ValueNet(nn.Module):
                 #print(x.shape)
         else:
             x = self.fc_ins[self.curr_task_id](x)
+        x = self.relu(x)
         #print(x.shape)
         x = self.fc1(x)
         x = self.relu(x)
         #print(x.shape)
-        x = self.fc2(x)
-        x = self.relu(x)
-        #print(x.shape)
-        x = self.fc3(x)
-        x = self.relu(x)
-        #print(x.shape)
+        #x = self.fc2(x)
+        #x = self.relu(x)
+        ##print(x.shape)
+        #x = self.fc3(x)
+        #x = self.relu(x)
+        ##print(x.shape)
         x = self.fc_outs[self.curr_task_id](x)
         #print(x.shape)
         #input("wait")
@@ -263,11 +263,11 @@ class PlayerAgent:
         for target_param, param in zip(self.target_model.parameters(), self.model.parameters()):
             target_param.data.copy_(target_param.data * (1. - tau) + param.data * tau)
 
-    def act(self, s_sample):
+    def act(self, s_sample, is_test):
         a = None
 
         # with epsilon prob to choose random action else choose argmax Q estimate action
-        if np.random.rand() <= self.epsilon[self.task_id]:
+        if (np.random.rand() <= self.epsilon[self.task_id]) and not is_test:
             a = random.randint(0, self.a_shape[0]-1)
         else:
             state = torch.from_numpy(np.expand_dims(s_sample, axis=0)).float()

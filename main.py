@@ -2,10 +2,6 @@
 
 # TODO eventually test training and saving, cancelling execution, then loading and continue training but introduce new tasks, then demo
 
-# TODO experiments:
-# - more nodes per layer
-# - gridworld-first order
-
 import sys
 seed_val = int(sys.argv[1])
 datafile_name = sys.argv[2]
@@ -51,9 +47,9 @@ seen_task_dict = {}
 # hyperparams
 # - overall
 batch_size_dict = {available_tasks[0]: 128, available_tasks[1]: 128, available_tasks[2]: 128}
-#run_lim_dict = {available_tasks[0]: 100000, available_tasks[1]: 10000, available_tasks[2]: 10000}
-run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 20000, available_tasks[2]: 20000}
-#run_lim_dict = {available_tasks[0]: 50, available_tasks[1]: 50, available_tasks[2]: 50}
+run_lim_dict = {available_tasks[0]: 200000, available_tasks[1]: 15000, available_tasks[2]: 20000}
+#run_lim_dict = {available_tasks[0]: 15000, available_tasks[1]: 20000, available_tasks[2]: 200000}
+#run_lim_dict = {available_tasks[0]: 500, available_tasks[1]: 500, available_tasks[2]: 500}
 test_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 10000, available_tasks[2]: 10000}
 #test_run_lim_dict = {available_tasks[0]: 30, available_tasks[1]: 30, available_tasks[2]: 30}
 demo_run_lim_dict = {available_tasks[0]: 10000, available_tasks[1]: 1000, available_tasks[2]: 1000}
@@ -61,14 +57,15 @@ log_period = 500
 # - DDQN-specific
 mem_len_dict = {0: 20000, 1: 20000, 2: 20000} # TODO apparently this is too much, need to cut down dramatically (~1000 for each)
 explore_steps = 0
-gamma = 0.99
+gamma = 0.95 #0.99
 alpha = 0.001
 tau = 0.001
 epsilon = 1.
-epsilon_decay = 0.999
+epsilon_decay = 0.9995 #0.999
 epsilon_min = 0.01
 smax = 400
 lamb = 0.75
+#lamb = 0.05
 thresh_emb = 6
 thresh_cosh = 50
 clipgrad = 10000
@@ -160,7 +157,7 @@ def main():
                     env.render()
 
                 # get action
-                a = agent.act(s)
+                a = agent.act(s, False)
 
                 # perform action and advance env
                 s_prime, r, done, _ = env.step(a)
@@ -185,7 +182,7 @@ def main():
                         log_data = (total_runs, float(ep_r)/float(ep_diff+1), walltime.total_seconds())
                         check_ep = temp_ep
                     else:
-                        log_data = (total_runs, float(ep_r), walltime.total_seconds())
+                        log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                     data_logger.store_train_data(log_data, task_id)
                     data_logger.save_train_data(task, task_id)
 
@@ -264,7 +261,7 @@ def main():
                 while total_runs < run_lim:
                     if render:
                         env.render()
-                    a = agent.act(s)
+                    a = agent.act(s, True)
                     s_prime, r, done, _ = env.step(a)
                     if 3 == len(s_shape):
                         s_prime = img_preprocess(s_prime)
@@ -282,7 +279,7 @@ def main():
                             log_data = (total_runs, float(ep_r)/float(ep_diff+1), walltime.total_seconds())
                             check_ep = temp_ep
                         else:
-                            log_data = (total_runs, float(ep_r), walltime.total_seconds())
+                            log_data = (total_runs, float(ep_r)/float(run), walltime.total_seconds())
                         data_logger.store_test_data(log_data, test_task_id)
                         data_logger.save_test_data(test_task, test_task_id, idx)
 
@@ -335,7 +332,7 @@ def main():
                     env.render()
 
                 # get action
-                a = agent.act(s)
+                a = agent.act(s, True)
                 s_prime, r, done, _ = env.step(a)
                 if 3 == len(s_shape):
                     s_prime = img_preprocess(s_prime)

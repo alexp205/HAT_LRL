@@ -6,20 +6,13 @@ import pandas as pd
 
 plt.rcParams.update({'font.size': 14})
 
-##data_dir = "./data/basic_seq_lrl_test"
-#data_dir = "./data"
-##naive_data_dir = "./data/naive_baselines"
-#naive_data_dir = "./data"
-##indiv_data_dir = "./data/indiv_baselines"
-#indiv_data_dir = "./data"
 data_dir = "./data/nodeslayers_seq_lrl_test"
-naive_data_dir = "./data/softhard_seq_lrl_test"
-indiv_data_dir = "./data/softhard_seq_lrl_test"
+naive_data_dir = "./data/naive_baselines"
+indiv_data_dir = "./data/indiv_baselines"
 file_idxs = [1, 2, 3, 4, 5]
-#file_idxs = [1, 2]
 #exper_order = ["LunarLander-v2", "gridworld", "LunarLander-v2", "CartPole-v1", "gridworld", "CartPole-v1"] # TRAIN
 exper_order = ["LunarLander-v2", "gridworld", "CartPole-v1"] # TEST
-env_r_bounds = {"LunarLander-v2": [-10, 2], "gridworld": [-0.167, 0.0625], "CartPole-v1": [0, 500]}
+env_r_bounds = {"LunarLander-v2": [-9, 2], "gridworld": [-0.169, 0.063], "CartPole-v1": [0, 500]}
 colors = {"LunarLander-v2": "red", "gridworld": "blue", "CartPole-v1": "green"}
 
 #num_repeats = 2 # TRAIN
@@ -29,9 +22,6 @@ def rescale(val, in_min, in_max, out_min, out_max):
     return ((val - in_min) / (in_max - in_min)) * (out_max - out_min) + out_min
 
 for i in file_idxs:
-    #overall_env_switch_pts = [0]
-    #overall_env_switch_pt = 0
-
     episodes = []
     r_data = []
     naive_episodes = []
@@ -75,55 +65,40 @@ for i in file_idxs:
         indiv_old_pickup_pts[j] += indiv_pickup_pts[j]
         indiv_env_switch_pts.append(indiv_overall_ep_pickup)
 
-        #data_file = "TEST_" + str(i) + "_" + j + ".csv" # TRAIN
-        data_file = "TEST_nodeslayers_" + str(i) + "_iter_2_" + j + ".csv" # TEST
+        data_file = "TEST_nodeslayers_" + str(i) + "_iter_2_" + j + ".csv" # TRAIN
         df_data = pd.read_csv(os.path.join(data_dir, data_file), header=None, index_col=False)
-        #naive_data_file = "TEST_naive_" + str(i) + "_iter_2_" + j + ".csv" # TRAIN
-        naive_data_file = "TEST_softhard_" + str(i) + "_iter_2_" + j + ".csv" # TEST
+        naive_data_file = "TEST_naive_" + str(i) + "_iter_2_" + j + ".csv" # TRAIN
         naive_df_data = pd.read_csv(os.path.join(naive_data_dir, naive_data_file), header=None, index_col=False)
-        #indiv_data_file = "TEST_indiv_" + str(i) + "_iter_2_" + j + ".csv" # TRAIN
-        indiv_data_file = "TEST_softhard_" + str(i) + "_iter_2_" + j + ".csv" # TEST
+        indiv_data_file = "TEST_indiv_" + str(i) + "_iter_0_" + j + ".csv" # TRAIN
         indiv_df_data = pd.read_csv(os.path.join(indiv_data_dir, indiv_data_file), header=None, index_col=False)
     
         df_data = np.asarray(df_data.values.tolist())
         eps = df_data[:,0]
-        #data_start = np.where(eps==0)[0][-1]
-        #eps = eps[data_start:]
         if num_repeats == repeat_pts[j]:
             pickup_pts[j] = len(eps)+1
         else:
             pickup_pts[j] = np.where(eps==0)[0][repeat_pts[j]]
         rs = df_data[:,2]
-        #rs = rs[data_start:]
         naive_df_data = np.asarray(naive_df_data.values.tolist())
         naive_eps = naive_df_data[:,0]
-        #naive_data_start = np.where(naive_eps==0)[0][-1]
-        #naive_eps = naive_eps[naive_data_start:]
         if num_repeats == naive_repeat_pts[j]:
             naive_pickup_pts[j] = len(naive_eps)+1
         else:
             naive_pickup_pts[j] = np.where(naive_eps==0)[0][naive_repeat_pts[j]]
         naive_rs = naive_df_data[:,2]
-        #naive_rs = naive_rs[naive_data_start:]
         indiv_df_data = np.asarray(indiv_df_data.values.tolist())
         indiv_eps = indiv_df_data[:,0]
-        #indiv_data_start = np.where(indiv_eps==0)[0][-1]
-        #indiv_eps = indiv_eps[indiv_data_start:]
         if num_repeats == indiv_repeat_pts[j]:
             indiv_pickup_pts[j] = len(indiv_eps)+1
         else:
             indiv_pickup_pts[j] = np.where(indiv_eps==0)[0][indiv_repeat_pts[j]]
         indiv_rs = indiv_df_data[:,2]
-        #indiv_rs = indiv_rs[indiv_data_start:]
 
         temp_eps = eps[old_pickup_pts[j]:pickup_pts[j]] + overall_ep_pickup
-        #temp_eps = temp_eps[:-2] # don't keep last episode
         temp_rs = rs[old_pickup_pts[j]:pickup_pts[j]]
         naive_temp_eps = naive_eps[naive_old_pickup_pts[j]:naive_pickup_pts[j]] + naive_overall_ep_pickup
-        #naive_temp_eps = naive_temp_eps[:-2] # don't keep last episode
         naive_temp_rs = naive_rs[naive_old_pickup_pts[j]:naive_pickup_pts[j]]
         indiv_temp_eps = indiv_eps[indiv_old_pickup_pts[j]:indiv_pickup_pts[j]] + indiv_overall_ep_pickup
-        #indiv_temp_eps = indiv_temp_eps[:-2] # don't keep last episode
         indiv_temp_rs = indiv_rs[indiv_old_pickup_pts[j]:indiv_pickup_pts[j]]
 
         # NOTE activate for avg rs
@@ -146,16 +121,9 @@ for i in file_idxs:
             indiv_avg_rs[k] = mean_val
         indiv_temp_rs = indiv_avg_rs
 
-        #temp_rs = temp_rs[:-2]
-        #temp_rs = rescale(temp_rs, env_r_bounds[j][0], env_r_bounds[j][1], 0, 1)
-        #naive_temp_rs = naive_temp_rs[:-2]
-        #naive_temp_rs = rescale(naive_temp_rs, env_r_bounds[j][0], env_r_bounds[j][1], 0, 1)
-        #indiv_temp_rs = indiv_temp_rs[:-2]
-        #indiv_temp_rs = rescale(indiv_temp_rs, env_r_bounds[j][0], env_r_bounds[j][1], 0, 1)
-
-        #switch_cutoff = min(len(temp_eps), len(naive_temp_eps), len(indiv_temp_eps))
-        #overall_env_switch_pts.append(switch_cutoff + overall_env_switch_pt)
-        #overall_env_switch_pt = switch_cutoff + overall_env_switch_pt
+        temp_rs = rescale(temp_rs, env_r_bounds[j][0], env_r_bounds[j][1], 0, 1)
+        naive_temp_rs = rescale(naive_temp_rs, env_r_bounds[j][0], env_r_bounds[j][1], 0, 1)
+        indiv_temp_rs = rescale(indiv_temp_rs, env_r_bounds[j][0], env_r_bounds[j][1], 0, 1)
 
         episodes = np.append(episodes, temp_eps)
         r_data = np.append(r_data, temp_rs)

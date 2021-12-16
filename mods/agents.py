@@ -13,26 +13,33 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.nn.functional import mse_loss
 
+# Zixuan's mod
+from custom_optim import ButterflyAdam
+
 class ValueNet(nn.Module):
-    def __init__(self):
+    def __init__(self, smax):
         super(ValueNet, self).__init__()
+        self.smax = smax
         self.task_ids = []
         self.curr_task_id = -1
         self.task_shapes = {}
         self.fc_ins = nn.ModuleList()
         self.fc_outs = nn.ModuleList()
         #self.hl_size = 128
-        self.hl_size = 1024
+        self.hl_size = 512
+        #self.hl_size = 1024
 
         self.fc1 = nn.Linear(self.hl_size, self.hl_size)
         self.efc1 = nn.ModuleList()
-        self.fc2 = nn.Linear(self.hl_size, self.hl_size)
-        self.efc2 = nn.ModuleList()
-        self.fc3 = nn.Linear(self.hl_size, self.hl_size)
-        self.efc3 = nn.ModuleList()
+        #self.fc2 = nn.Linear(self.hl_size, self.hl_size)
+        #self.efc2 = nn.ModuleList()
+        #self.fc3 = nn.Linear(self.hl_size, self.hl_size)
+        #self.efc3 = nn.ModuleList()
 
         self.relu = nn.ReLU()
         self.gate = nn.Sigmoid()
+
+        self.check_mode = False
 
     def task_configure(self, task_id, s_shape, a_shape):
         if task_id not in self.task_ids:
@@ -62,20 +69,12 @@ class ValueNet(nn.Module):
                 fc_in.append(nn.Linear(2304,self.hl_size))
                 self.fc_ins.append(fc_in)
             else:
-                #self.fc_ins.append(nn.Linear(s_shape[0], self.hl_size))
-                temp_in = nn.Linear(s_shape[0], self.hl_size)
-                for p in temp_in.parameters():
-                    p.requires_grad = False
-                self.fc_ins.append(temp_in)
-            #self.fc_outs.append(nn.Linear(self.hl_size, a_shape[0]))
-            temp_out = nn.Linear(self.hl_size, a_shape[0])
-            for p in temp_out.parameters():
-                p.requires_grad = False
-            self.fc_outs.append(temp_out)
+                self.fc_ins.append(nn.Linear(s_shape[0], self.hl_size))
+            self.fc_outs.append(nn.Linear(self.hl_size, a_shape[0]))
 
             self.efc1.append(nn.Embedding(1, self.hl_size))
-            self.efc2.append(nn.Embedding(1, self.hl_size))
-            self.efc3.append(nn.Embedding(1, self.hl_size))
+            #self.efc2.append(nn.Embedding(1, self.hl_size))
+            #self.efc3.append(nn.Embedding(1, self.hl_size))
 
             self.task_ids.append(task_id)
             self.task_shapes[task_id] = len(s_shape)
@@ -108,9 +107,9 @@ class ValueNet(nn.Module):
     def forward(self, observations: torch.Tensor, s=1) -> torch.Tensor:
         # gates
         masks = self.mask(self.curr_task_id, s)
-        gfc1, gfc2, gfc3 = masks
+        #gfc1, gfc2, gfc3 = masks
         #gfc1, gfc2 = masks
-        #gfc1, = masks
+        gfc1, = masks
 
         #print(observations.shape)
 
@@ -131,17 +130,25 @@ class ValueNet(nn.Module):
         x = self.relu(x)
         #print(x.shape)
         x = x * gfc1.expand_as(x)
+        if self.check_mode:
+            print("checking first gated layer")
+            print(np.sum(gfc1.expand_as(x).data.cpu().numpy()))
+            print(np.sum(x.data.cpu().numpy()))
         #print(x.shape)
-        x = self.fc2(x)
-        x = self.relu(x)
-        #print(x.shape)
-        x = x * gfc2.expand_as(x)
-        #print(x.shape)
-        x = self.fc3(x)
-        x = self.relu(x)
-        #print(x.shape)
-        x = x * gfc3.expand_as(x)
-        #print(x.shape)
+        #x = self.fc2(x)
+        #x = self.relu(x)
+        ##print(x.shape)
+        #x = x * gfc2.expand_as(x)
+        #if self.check_mode:
+        #    print("checking first gated layer")
+        #    print(np.sum(gfc1.expand_as(x).data.cpu().numpy()))
+        #    print(np.sum(x.data.cpu().numpy()))
+        ##print(x.shape)
+        #x = self.fc3(x)
+        #x = self.relu(x)
+        ##print(x.shape)
+        #x = x * gfc3.expand_as(x)
+        ##print(x.shape)
         x = self.fc_outs[self.curr_task_id](x)
         #print(x.shape)
         #input("wait")
@@ -151,32 +158,45 @@ class ValueNet(nn.Module):
     def mask(self, task_id, s=1):
         temp_id = Variable(torch.LongTensor([0]), volatile=False).cuda()
         gfc1 = self.gate(s*self.efc1[self.curr_task_id](temp_id))
-        gfc2 = self.gate(s*self.efc2[self.curr_task_id](temp_id))
-        gfc3 = self.gate(s*self.efc3[self.curr_task_id](temp_id))
-        return [gfc1, gfc2, gfc3]
+        #gfc2 = self.gate(s*self.efc2[self.curr_task_id](temp_id))
+        #gfc3 = self.gate(s*self.efc3[self.curr_task_id](temp_id))
+
+        # Zixuan's mod
+        if s == self.smax:
+            #print("here")
+            #print("before killing, gfc1:")
+            #print(gfc1)
+            gfc1 = (gfc1 > 0.5).float()
+            #print("after killing, gfc1:")
+            #print(gfc1)
+            #input("wait")
+            #gfc2 = (gfc2 > 0.5).float()
+            #gfc3 = (gfc3 > 0.5).float()
+
+        #return [gfc1, gfc2, gfc3]
         #return [gfc1, gfc2]
-        #return [gfc1]
+        return [gfc1]
 
     def get_view_for(self, n, masks):
-        gfc1, gfc2, gfc3 = masks
+        #gfc1, gfc2, gfc3 = masks
         #gfc1, gfc2 = masks
-        #gfc1, = masks
+        gfc1, = masks
         if n == 'fc1.weight':
             return gfc1.data.view(-1,1).expand_as(self.fc1.weight)
         elif n == 'fc1.bias':
             return gfc1.data.view(-1)
-        elif n == 'fc2.weight':
-            post = gfc2.data.view(-1,1).expand_as(self.fc2.weight)
-            pre = gfc1.data.view(1,-1).expand_as(self.fc2.weight)
-            return torch.min(post,pre)
-        elif n == 'fc2.bias':
-            return gfc2.data.view(-1)
-        elif n == 'fc3.weight':
-            post = gfc3.data.view(-1,1).expand_as(self.fc3.weight)
-            pre = gfc2.data.view(1,-1).expand_as(self.fc3.weight)
-            return torch.min(post,pre)
-        elif n == 'fc3.bias':
-            return gfc3.data.view(-1)
+        #elif n == 'fc2.weight':
+        #    post = gfc2.data.view(-1,1).expand_as(self.fc2.weight)
+        #    pre = gfc1.data.view(1,-1).expand_as(self.fc2.weight)
+        #    return torch.min(post,pre)
+        #elif n == 'fc2.bias':
+        #    return gfc2.data.view(-1)
+        #elif n == 'fc3.weight':
+        #    post = gfc3.data.view(-1,1).expand_as(self.fc3.weight)
+        #    pre = gfc2.data.view(1,-1).expand_as(self.fc3.weight)
+        #    return torch.min(post,pre)
+        #elif n == 'fc3.bias':
+        #    return gfc3.data.view(-1)
         return None
 
     def save(self, path, step, optimizer):
@@ -188,9 +208,9 @@ class ValueNet(nn.Module):
             'task_shapes': self.task_shapes,
             'fc_ins': self.fc_ins,
             'fc_outs': self.fc_outs,
-            'efc1': self.efc1,
-            'efc3': self.efc3,
-            'efc2': self.efc2
+            'efc1': self.efc1
+            #'efc3': self.efc3,
+            #'efc2': self.efc2
         }, path)
 
     def load(self, checkpoint_path, optimizer=None):
@@ -204,8 +224,8 @@ class ValueNet(nn.Module):
         self.fc_ins = checkpoint['fc_ins']
         self.fc_outs = checkpoint['fc_outs']
         self.efc1 = checkpoint['efc1']
-        self.efc3 = checkpoint['efc3']
-        self.efc2 = checkpoint['efc2']
+        #self.efc3 = checkpoint['efc3']
+        #self.efc2 = checkpoint['efc2']
 
 class PlayerAgent:
     def __init__(self, gamma, alpha, seed_val, mem_len, epsilon, epsilon_decay, epsilon_min, smax, lamb, thresh_emb, thresh_cosh, clipgrad):
@@ -223,10 +243,19 @@ class PlayerAgent:
         self.mask_pre = None
         self.mask_back = None
 
-        self.model = ValueNet().cuda()
-        self.target_model = ValueNet().cuda()
+        self.model = ValueNet(smax).cuda()
+        self.target_model = ValueNet(smax).cuda()
         self.target_model.load_state_dict(self.model.state_dict())
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.alpha)
+        #self.optimizer = optim.Adam(self.model.parameters(), lr=self.alpha)
+        # Zixuan's mod
+        param_opt = [(k,v) for k,v in self.model.named_parameters() if True==v.requires_grad]
+        param_opt = [n for n in param_opt if "pooler" not in n[0]]
+        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        opt_group_param = [
+            {'name': [n for n,p in param_opt if not any(nd in n for nd in no_decay)],'params': [p for n,p in param_opt if not any(nd in n for nd in no_decay)], 'weight_decay': 0.0},
+            {"name": [n for n,p in param_opt if any(nd in n for nd in no_decay)], 'params': [p for n,p in param_opt if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+            ]
+        self.optimizer = ButterflyAdam(opt_group_param, lr=self.alpha)
         self.memory = {} # set of mems, one per task
 
         self.mem_len = mem_len
@@ -270,10 +299,41 @@ class PlayerAgent:
             self.memory[task_id] = []
             self.task_counters[task_id] = 0
             self.epsilon[task_id] = self.epsilon_init
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.alpha)
+        #self.optimizer = optim.Adam(self.model.parameters(), lr=self.alpha)
+        # Zixuan's mod
+        param_opt = [(k,v) for k,v in self.model.named_parameters() if True==v.requires_grad]
+        param_opt = [n for n in param_opt if "pooler" not in n[0]]
+        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        opt_group_param = [
+            {'name': [n for n,p in param_opt if not any(nd in n for nd in no_decay)],'params': [p for n,p in param_opt if not any(nd in n for nd in no_decay)], 'weight_decay': 0.0},
+            {"name": [n for n,p in param_opt if any(nd in n for nd in no_decay)], 'params': [p for n,p in param_opt if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+            ]
+        self.optimizer = ButterflyAdam(opt_group_param, lr=self.alpha)
+
+        self.model.check_mode = False
+        self.target_model.check_mode = False
 
         self.target_model.cuda()
         self.model.cuda()
+
+    def check_forgetting(self, task, task_id):
+        print("checking forgetting for {}".format(task))
+
+        self.model.check_mode = True
+        self.model.task_configure(task_id, -1, -1)
+
+        sample = np.asarray(self.memory[task_id], dtype=object)[0]
+        state_new = torch.from_numpy(np.expand_dims(sample[3], axis=0)).float()
+        state_new = Variable(state_new).cuda()
+        self.model.eval()
+
+        action_new, masks = self.model.forward(state_new, self.s_factor)
+        print("CHECK state:")
+        print(state_new)
+        print("CHECK action:")
+        print(action_new)
+        print("CHECK out weights:")
+        print(self.model.fc_outs[self.model.curr_task_id].weight)
 
     def store_experience(self, s, a, r, s_prime, done, ep, run):
         s_in = s.tolist()
@@ -296,25 +356,6 @@ class PlayerAgent:
 
     def sigmoid(self, val):
         return 1. / (1. + np.exp(-val))
-
-    # TODO check... but not now
-    def get_traj(self, traj_id):
-        traj = []
-
-        for trans in self.memory[traj_id]:
-            idx = trans[5]
-            if traj_id == idx:
-                traj.append(trans)
-
-        print(traj)
-        input("wait")
-
-        traj = np.sort(traj, axis=6)
-
-        print(traj)
-        input("wait")
-
-        return traj
 
     def get_masks(self):
         mask = self.model.mask(self.task_id, self.smax)
@@ -418,6 +459,8 @@ class PlayerAgent:
         #print(Q)
         #input("wait")
         loss, _ = self.criterion(Q, y.detach(), masks)
+        #print("loss:")
+        #print(loss)
 
         # backward optimize
         self.optimizer.zero_grad()
@@ -427,7 +470,9 @@ class PlayerAgent:
         if not self.is_first_task:
             for n,p in self.model.named_parameters():
                 if n in self.mask_back:
-                    p.grad.data *= self.mask_back[n]
+                    #p.grad.data *= self.mask_back[n]
+                    # Zixuan's mod
+                    p.grad.data *= (self.mask_back[n] > 0.5).float()
 
         # HAT - compensate embedding grads
         for n,p in self.model.named_parameters():
@@ -437,7 +482,20 @@ class PlayerAgent:
                 p.grad.data *= self.smax/self.s_factor*num/den
 
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clipgrad)
-        self.optimizer.step()
+
+        #if 0 == self.task_counters[self.task_id] % 2000:
+        #    print("BEFORE optimizer step")
+        #    print(self.model.fc1.weight)
+        #    print(np.sum(self.model.fc1.weight.data.cpu().numpy()))
+
+        #self.optimizer.step()
+        self.optimizer.step(custom_type='mask', t=self.is_first_task, mask_back=self.mask_back)
+
+        #if 0 == self.task_counters[self.task_id] % 2000:
+        #    print("AFTER optimizer step")
+        #    print(self.model.fc1.weight)
+        #    print(np.sum(self.model.fc1.weight.data.cpu().numpy()))
+        #    #input("wait")
 
         # HAT - constrain embeddings
         for n,p in self.model.named_parameters():
@@ -470,7 +528,6 @@ class PlayerAgent:
         #print("count")
         #print(count)
         #input("wait")
-        #return mse_loss(input=outputs, target=targets), reg
         return mse_loss(input=outputs, target=targets) + self.lamb * reg, reg
 
     def update_target_models(self, tau):

@@ -13,6 +13,7 @@ import math
 class ValueNet(nn.Module):
     def __init__(self, s_shape, a_shape):
         super(ValueNet, self).__init__()
+        # NOTE
         # LunarLander
         # ref: https://github.com/frizner/LunarLander-v2/blob/master/lunarlander.py
         #self.fc1 = nn.Linear(s_shape[0], 128)
@@ -23,11 +24,20 @@ class ValueNet(nn.Module):
         #self.fc1 = nn.Linear(s_shape[0], 128)
         #self.fc2 = nn.Linear(128, 128)
         #self.fc3 = nn.Linear(128, a_shape[0])
+        #self.fc1 = nn.Linear(s_shape[0], 1024)
+        #self.fc2 = nn.Linear(1024, 1024)
+        #self.fc3 = nn.Linear(1024, a_shape[0])
         # CarPole
         # ref: https://github.com/gsurma/cartpole/blob/master/cartpole.py
         self.fc1 = nn.Linear(s_shape[0], 24)
         self.fc2 = nn.Linear(24, 24)
         self.fc3 = nn.Linear(24, a_shape[0])
+        #self.fc1 = nn.Linear(s_shape[0], 62)
+        #self.fc2 = nn.Linear(62, 62)
+        #self.fc3 = nn.Linear(62, a_shape[0])
+        #self.fc1 = nn.Linear(s_shape[0], 124)
+        #self.fc2 = nn.Linear(124, 124)
+        #self.fc3 = nn.Linear(124, a_shape[0])
         self.relu = nn.ReLU()
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
@@ -149,11 +159,11 @@ class PlayerAgent:
         for target_param, param in zip(self.target_model.parameters(), self.model.parameters()):
             target_param.data.copy_(target_param.data * (1. - tau) + param.data * tau)
 
-    def act(self, s_sample):
+    def act(self, s_sample, is_test):
         a = None
 
         # with epsilon prob to choose random action else choose argmax Q estimate action
-        if np.random.rand() <= self.epsilon:
+        if (np.random.rand() <= self.epsilon) and not is_test:
             a = random.randint(0, self.a_shape[0]-1)
         else:
             state = torch.from_numpy(np.expand_dims(s_sample, axis=0)).float()
